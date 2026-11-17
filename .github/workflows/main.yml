@@ -17,7 +17,7 @@ jobs:
           path: |
             ~/.local
             ~/.giteapc
-          key: fxsdk-toolchain-v4
+          key: fxsdk-toolchain-v5
 
       - name: System packages
         id: apt
@@ -35,20 +35,23 @@ jobs:
           cd /tmp/GiteaPC
           ./install.sh
 
-      - name: Set PATH
+      - name: Create giteapc command and set PATH
         id: path
         run: |
+          mkdir -p "$HOME/.local/bin"
+          GP="$HOME/.local/share/giteapc/Lephenixnoir/GiteaPC/giteapc.py"
+          printf '#!/bin/sh\nexec python3 "%s" "$@"\n' "$GP" > "$HOME/.local/bin/giteapc"
+          chmod +x "$HOME/.local/bin/giteapc"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          GP=$(find "$HOME" /usr/local -name giteapc -type f 2>/dev/null | head -n 1)
-          if [ -n "$GP" ]; then echo "$(dirname "$GP")" >> "$GITHUB_PATH"; fi
 
       - name: Install sh-elf-gcc, fxSDK and gint
         id: tc
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          giteapc install -y Lephenixnoir/sh-elf-gcc
-          giteapc install -y Lephenixnoir/fxsdk
-          giteapc install -y Lephenixnoir/gint
+          export PATH="$HOME/.local/bin:$PATH"
+          giteapc install -y Lephenixnoir/sh-elf-gcc 2>&1 | tee /tmp/tc.log
+          giteapc install -y Lephenixnoir/fxsdk 2>&1 | tee -a /tmp/tc.log
+          giteapc install -y Lephenixnoir/gint 2>&1 | tee -a /tmp/tc.log
 
       - name: Build BusinessFX.g3a
         id: build
@@ -64,5 +67,4 @@ jobs:
         run: |
           echo "::error title=steps::apt=${{ steps.apt.outcome }} gp=${{ steps.gp.outcome }} path=${{ steps.path.outcome }} tc=${{ steps.tc.outcome }} build=${{ steps.build.outcome }}"
           echo "::error title=tools::giteapc=$(command -v giteapc || echo NO) fxsdk=$(command -v fxsdk || echo NO) gcc=$(command -v sh-elf-gcc || echo NO)"
-          echo "::error title=found::$(find $HOME /usr/local -name 'giteapc*' 2>/dev/null | head -5 | tr '\n' ' ')"
-          echo "::error title=localbin::$(ls $HOME/.local/bin 2>&1 | head -20 | tr '\n' ' ')"
+          echo "::error title=tclog::$(tail -n 10 /tmp/tc.log 2>/dev/null | tr '\n' '|' | cut -c1-1200)"
