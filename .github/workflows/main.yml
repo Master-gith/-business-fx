@@ -3,8 +3,10 @@ on: [push, pull_request, workflow_dispatch]
 
 jobs:
   g3a:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 360
+    env:
+      PIP_BREAK_SYSTEM_PACKAGES: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -15,7 +17,7 @@ jobs:
           path: |
             ~/.local
             ~/.giteapc
-          key: fxsdk-toolchain-v2
+          key: fxsdk-toolchain-v3
 
       - name: System packages
         run: |
@@ -24,20 +26,32 @@ jobs:
             pkg-config libpng-dev libusb-1.0-0-dev libudisks2-dev libsdl2-dev \
             libgmp-dev libmpfr-dev libmpc-dev texinfo bison flex curl
 
-      - name: Install fxSDK and gint with GiteaPC
+      - name: Install GiteaPC
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           git clone https://gitea.planet-casio.com/Lephenixnoir/GiteaPC.git /tmp/GiteaPC
-          cd /tmp/GiteaPC && ./install.sh
-          export PATH="$HOME/.local/bin:$PATH"
+          cd /tmp/GiteaPC
+          ./install.sh
+          echo "--- files named giteapc*:"
+          find "$HOME" /usr/local -name 'giteapc*' 2>/dev/null | head -20
+
+      - name: Set PATH
+        run: |
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          GP=$(find "$HOME" /usr/local -name giteapc -type f 2>/dev/null | head -n 1)
+          if [ -n "$GP" ]; then echo "$(dirname "$GP")" >> "$GITHUB_PATH"; fi
+          echo "giteapc found at: $GP"
+
+      - name: Install sh-elf-gcc, fxSDK and gint
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          giteapc --help || true
           giteapc install -y Lephenixnoir/sh-elf-gcc
           giteapc install -y Lephenixnoir/fxsdk
           giteapc install -y Lephenixnoir/gint
 
       - name: Build BusinessFX.g3a
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          fxsdk build-cg
+        run: fxsdk build-cg
 
       - uses: actions/upload-artifact@v4
         with:
