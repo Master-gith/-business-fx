@@ -55,16 +55,20 @@ jobs:
 
       - name: Build BusinessFX.g3a
         id: build
-        run: fxsdk build-cg
+        run: |
+          fxsdk build-cg
+          echo "::notice title=files::$(find . -name '*.g3a' -o -name 'CMakeCache.txt' | head -10 | tr '\n' ' ')"
+          echo "::notice title=builddir::$(ls build-cg 2>&1 | head -30 | tr '\n' ' ')"
 
       - uses: actions/upload-artifact@v4
         with:
           name: BusinessFX-g3a
-          path: build-cg/BusinessFX.g3a
+          path: |
+            **/*.g3a
+          if-no-files-found: error
 
       - name: Diagnostics
         if: failure()
         run: |
           echo "::error title=steps::apt=${{ steps.apt.outcome }} gp=${{ steps.gp.outcome }} path=${{ steps.path.outcome }} tc=${{ steps.tc.outcome }} build=${{ steps.build.outcome }}"
           echo "::error title=tools::giteapc=$(command -v giteapc || echo NO) fxsdk=$(command -v fxsdk || echo NO) gcc=$(command -v sh-elf-gcc || echo NO)"
-          echo "::error title=tclog::$(tail -n 10 /tmp/tc.log 2>/dev/null | tr '\n' '|' | cut -c1-1200)"
